@@ -2,9 +2,13 @@ python3-dev
 python3-pip
 rustc
 cargo
+build-essential
 zlib1g-dev
 libjpeg-dev
 libpng-dev
 libtiff-dev
 tesseract-ocr
 libtesseract-dev
+gcc
+g++
+python3-setuptools
