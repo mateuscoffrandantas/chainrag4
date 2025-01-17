@@ -6,11 +6,11 @@ from PIL import Image
 import docx
 import streamlit as st
 from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
 from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS
 from pypdf.errors import PdfReadError
 from openai.error import AuthenticationError, InvalidRequestError
 
@@ -62,35 +62,33 @@ def qa(file_path, file_type, query, chain_type, k):
             return None
         
         # split the documents into chunks
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        text_splitter = CharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            separator="\n"
+        )
         texts = text_splitter.split_documents(documents)
         
         # select which embeddings we want to use
         embeddings = OpenAIEmbeddings()
         
         # create the vectorestore to use as the index
-        db = Chroma.from_documents(texts, embeddings)
+        db = FAISS.from_documents(texts, embeddings)
         
         # expose this index in a retriever interface
-        retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": k})
+        retriever = db.as_retriever(search_kwargs={"k": k})
         
         # create a chain to answer questions 
         qa = RetrievalQA.from_chain_type(
-            llm=ChatOpenAI(model="gpt-4"), 
+            llm=OpenAI(temperature=0),
             chain_type=chain_type, 
             retriever=retriever, 
             return_source_documents=True
         )
         result = qa({"query": query})
         return result
-    except PdfReadError as e:
-        st.error(f"Error reading PDF file: {e}")
-        return None
-    except AuthenticationError as e:
-        st.error(f"Authentication error: {e}")
-        return None
-    except InvalidRequestError as e:
-        st.error(f"Invalid request error: {e}")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
         return None
 
 # Função para exibir o resultado no Streamlit
@@ -114,15 +112,10 @@ if run_button and file_input and openaikey and prompt:
         # Configurar a chave de API do OpenAI
         os.environ["OPENAI_API_KEY"] = openaikey
 
-        # Verificar se a chave de API é válida
         try:
-            # Testar a chave de API com uma chamada simples
-            embeddings = OpenAIEmbeddings()
-            embeddings.embed_documents(["test"])
-        except AuthenticationError as e:
-            st.error(f"Invalid OpenAI API Key: {e}")
-        else:
             # Executar a função de perguntas e respostas
             result = qa(temp_file_path, file_input.type, prompt, select_chain_type, select_k)
             # Exibir o resultado
             display_result(result)
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
